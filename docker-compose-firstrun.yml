@@ -1,0 +1,6 @@
+tomcat7:
+  #build: ./dockerfile
+  #dockerfile: Dockerfile
+  image: cheewai/tomcat
+  volumes:
+    - ./webapps:/usr/tomcat/webapps
