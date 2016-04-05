@@ -11,46 +11,34 @@ Serve Java web application GeoServer (frontend) and GeoFence (authentication and
 
 ## Prerequisites
 
-- docker-engine 1.9.1+
-- docker-compose 1.4+
+- docker-engine 1.10+
+- docker-compose 1.5+
 
+## geofence-datasource-ovr.properties
 
-## Set up PostgreSQL
+Decide if you will use the builtin Hibernate database or an external PostGIS-enabled PostgreSQL database.
 
-Skip this section if you intend to use Hibernate file-based database instead of PostgreSQL
+Edit the following by replacing the placeholders *{{parameter}}* with actual values and save file as *geofence-datasource-ovr.properties*. You may name it differently as long as it is also specified in the *docker-compose.yml*
+
+Comment out either the H2 stanza if you are using PostgreSQL database, or vice-versa. The parameter *geofenceDataSource.url* should use absolute pathname especially if you want to persist it outside the Docker container
+
 
 ```
-createuser --createdb --login --no-superuser --no-createrole --pwprompt geofence_test
-CREATE DATABASE geofence OWNER geofence_test ENCODING 'UTF8';
-
-# Connect to new database
-\c geofence_test
-
-CREATE EXTENSION postgis;
-```
-
-### GeoFence override
-
-- Edit the following by replacing the placeholders {{}} with actual values and save it as *geofence-datasource-ovr.properties*. You may name it differently as long as it is also specified in the *docker-compose.yml*
-
-- Comment out either the H2 stanza if you are using PostgreSQL database, or vice-versa. The parameter *geofenceDataSource.url* should use absolute pathname especially if you want to persist it outside the Docker container
-
-- 
-
-```
-#geofenceVendorAdapter.databasePlatform=org.hibernatespatial.geodb.GeoDBDialect
-#geofenceDataSource.driverClassName=org.h2.Driver
-#geofenceDataSource.url=jdbc:h2:geofence_db/geofence
-#geofenceDataSource.username=sa
-#geofenceDataSource.password=sa
-#geofenceEntityManagerFactory.jpaPropertyMap[hibernate.default_schema]=public
-
-geofenceVendorAdapter.databasePlatform=org.hibernatespatial.postgis.PostgisDialect
-geofenceDataSource.driverClassName=org.postgresql.Driver
-geofenceDataSource.url=jdbc:postgresql://{{ dbserver }}:{{ dbport }}/{{ dbname }}
-geofenceDataSource.username={{ dbuser }}
-geofenceDataSource.password={{ dbpassword }}
-geofenceEntityManagerFactory.jpaPropertyMap[hibernate.default_schema]={{ dbschema }}
+##### Choose either Hibernate or PostgreSQL stanza below
+# Uncomment this stanza to use Hibernate database
+geofenceVendorAdapter.databasePlatform=org.hibernatespatial.geodb.GeoDBDialect
+geofenceDataSource.driverClassName=org.h2.Driver
+geofenceDataSource.url=jdbc:h2:geofence_db/geofence
+geofenceDataSource.username=sa
+geofenceDataSource.password=sa
+geofenceEntityManagerFactory.jpaPropertyMap[hibernate.default_schema]=public
+# Uncomment this stanza to use PostgreSQL database
+#geofenceVendorAdapter.databasePlatform=org.hibernatespatial.postgis.PostgisDialect
+#geofenceDataSource.driverClassName=org.postgresql.Driver
+#geofenceDataSource.url=jdbc:postgresql://{{ dbserver }}:{{ dbport }}/{{ dbname }}
+#geofenceDataSource.username={{ dbuser }}
+#geofenceDataSource.password={{ dbpassword }}
+#geofenceEntityManagerFactory.jpaPropertyMap[hibernate.default_schema]={{ dbschema }}
 
 ################################################################################
 ## Other setup entries
@@ -90,6 +78,20 @@ geofenceEntityManagerFactory.jpaPropertyMap[hibernate.validator.autoregister_lis
 #geofenceEntityManagerFactory.jpaPropertyMap[hibernate.cache.provider_configuration_file_resource_path]=file:/path/to/geofence-ehcache-override.xml
 ```
 
+## Set up database on an existing PostgreSQL server
+
+Skip this section if you intend to use Hibernate file-based database instead of PostgreSQL
+
+```
+createuser --createdb --login --no-superuser --no-createrole --pwprompt geofence_test
+CREATE DATABASE geofence OWNER geofence_test ENCODING 'UTF8';
+
+# Connect to new database
+\c geofence_test
+
+CREATE EXTENSION postgis;
+```
+
 ## Create subdirectories
 
 - downloads
@@ -102,22 +104,20 @@ Download the following files into subdirectory *downloads/*.
 As at 2016-01-21, [GeoFence master branch](https://github.com/geoserver/geofence) supports GeoServer 2.8.x. It may be possible or necessary to download later version of files. Listed below are known to work at the time of writing.
 
 ```
-wget http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip
-# Unzip local_policy.jar US_export_policy.jar
+cd downloads
 
-wget http://sourceforge.net/projects/geoserver/files/GeoServer/2.8.1/geoserver-2.8.1-war.zip
-# Unzip war file into webapps/
+wget http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip && unzip -j -d . UnlimitedJCEPolicyJDK7.zip US_export_policy.jar local_policy.jar
 
-wget http://ares.boundlessgeo.com/geofence/master/geofence-master-latest-war.zip
-# Unzip war file into webapps/
+wget http://sourceforge.net/projects/geoserver/files/GeoServer/2.8.1/geoserver-2.8.1-war.zip && unzip -x -d ../webapps/ geoserver-2.8.1-war.zip
+
+wget http://ares.boundlessgeo.com/geofence/master/geofence-master-latest-war.zip && unzip -j -d ../webapps/ geofence-master-latest-war.zip geofence.war
 
 wget http://ares.boundlessgeo.com/geoserver/2.8.x/community-latest/geoserver-2.8-SNAPSHOT-geofence-plugin.zip
 
 wget http://www.hibernatespatial.org/repository/org/hibernatespatial/hibernate-spatial-postgis/1.1.1/hibernate-spatial-postgis-1.1.1.jar
 ```
 
-
-## Running the container for the first time
+## Run container for the first time
 
 Before you begin, ensure that *webapps* directory contains *geoserver.war* and *geofence.war*
 
@@ -127,12 +127,23 @@ When Tomcat runs for the first time, on detecting the WAR files, it will uncompr
 # Download the tomcat docker image
 docker-compose -f docker-compose-firstrun.yml pull
 
-# Download tomcat image
-docker-compose -f docker-compose-firstrun.yml pull
-
 # Start tomcat in foreground. When the application is ready to server, press control-C to stop it.
 docker-compose -f docker-compose-firstrun.yml up
+
 ```
+
+## Add geofence extension to Geoserver
+
+At this point, *webapps/geoserver/* and *webapps/geofence/* directories would have been created by tomcat during the initial run from unpacking the jar files you've placed there.
+
+To add geofence extension:
+
+```
+unzip -x -d webapps/geoserver/WEB-INF/lib/ downloads/geoserver-2.8-SNAPSHOT-geofence-plugin.zip
+```
+
+Failing to perform this step will result in the service endpoint *http://.../geofence/* being unavailable.
+
 
 ## docker-compose.yml
 
@@ -158,6 +169,7 @@ tomcat7:
     - ./geofence-datasource-ovr.properties:/usr/tomcat/webapps/geofence/WEB-INF/classes/geofence-datasource-ovr.properties
     - ./downloads/hibernate-spatial-postgis-1.1.1.jar:/usr/tomcat/webapps/geofence/WEB-INF/lib/hibernate-spatial-postgis-1.1.1.jar
 ```
+
 
 ## Details docker-compose.yml
 
@@ -209,8 +221,6 @@ CATALINA_OPTS="-server -d64 -XX:+AggressiveOpts -Djava.awt.headless=true -XX:Max
 if $JMX ; then
     CATALINA_OPTS="${CATALINA_OPTS} -Xdebug -Xrunjdwp:transport=dt_socket,address=${DEBUG_PORT},server=y,suspend=n -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.ssl=false  -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.port=${JMX_PORT} -Djava.rmi.server.hostname=${JMX_HOSTNAME} -Dcom.sun.management.jmxremote.rmi.port=${JMX_PORT}"
 fi
-
-export JAVA_OPTS="-Dgeofence-ovr=file:/gf-ovr.properties $JAVA_OPTS"
 ```
 
 You may override the [default values](https://github.com/cynici/tomcat/blob/master/Dockerfile) for any of the variables in your *docker-compose.yml* file. GeoServer requires MINMEM greater or equal to 64 MB.
